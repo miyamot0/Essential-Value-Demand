@@ -1,0 +1,681 @@
+---
+title             : "Interpretation(s) of essential value in operant demand"
+shorttitle        : "ESSENTIAL VALUE AND OPERANT DEMAND"
+
+author: 
+  - name          : "Shawn P. Gilroy"
+    affiliation   : "1"
+    corresponding : yes
+    address       : "220 Audubon Hall Baton Rouge, Louisiana 70803"
+    email         : "sgilroy1@lsu.edu"
+    role:
+      - Conceptualization
+      - Writing - Original Draft Preparation
+      - Writing - Review & Editing
+
+affiliation:
+  - id            : "1"
+    institution   : "Louisiana State University"
+
+authornote: |
+ Shawn Patrick Gilroy is an Assistant Professor of School Psychology at Louisiana State University. Correspondence should be directed to sgilroy1@lsu.edu. The source code necessary to recreate this work is publicly hosted in a repository at: https://github.com/miyamot0/AnalyticalEV 
+
+abstract: |
+  The operant demand framework has achieved high levels of adoption as an established approach for understanding how various ecological factors influence choice and consumption. A central goal of the framework proposed by Hursh and Silberburg (2008) was to isolate the “essential value” of reinforcers; namely, their effects on behavior in context. The effect of reinforcers on behavior is a phenomenon that is expected to vary as a function of dosage level (i.e., magnitude), price (i.e., schedule requirements), the intensity of demand, the availability of reinforcers (i.e., supply), and the individual’s current and historical context. This technical report provides a historical summary of the concept, describes the quantitative basis of essential value in the framework of Hursh and Silberburg (2008), reviews prior attempts to approximate a generalizable index of essential value, and presents a newer formulation using exact solution to provide a more succinct and durable index. Proofs and solutions are provided to clarify the bases for novel and existing representations of EV. Recommendations are provided to improve the precision and accuracy of behavioral economics metrics as well as support consensus regarding their interpretation in the operant demand framework.
+
+keywords          : "operant demand, behavioral economics, essential value, elasticity"
+wordcount         : "4487"
+
+floatsintext      : yes
+figurelist        : yes
+tablelist         : yes
+footnotelist      : no
+linenumbers       : yes
+mask              : no
+draft             : yes
+
+documentclass     : "apa7"
+csl               : "apa.csl"
+classoption       : "man"
+header-includes:
+  - \usepackage{float} 
+  - \floatplacement{figure}{H} 
+  - \DeclareUnicodeCharacter{3B1}{\ensuremath{\alpha}}
+output            : papaja::apa6_pdf
+bibliography: references.bib
+---
+
+\raggedbottom
+
+```{r setup, include = FALSE}
+library("papaja")
+library(broom.mixed)
+library(gridExtra)
+library(nlme)
+library(tidyverse)
+
+source("shared.R", local = TRUE)
+
+combinedData = read.csv("CombinedSheet.csv")
+
+colnames(combinedData) <- c("DrugAndDose", "1", "10", "32", "100", "320", "1000", "Monkey", "Study")
+
+combinedDataReshape = combinedData %>%
+  gather(Price, Consumption, -DrugAndDose, -Monkey, -Study) %>%
+  mutate(Price = as.numeric(Price))
+
+combinedDataReshape[c('Drug', 'Dose')] <- str_split_fixed(combinedDataReshape$DrugAndDose, ' ', 2)
+
+combinedDataReshapeNormalized = combinedDataReshape %>%
+  rowwise() %>%
+  mutate(Dose = as.numeric(substr(Dose, 1, nchar(Dose) - 6))) %>%
+  group_by(Drug, Dose, Price) %>%
+  summarise(MeanConsumption = mean(Consumption)) %>%
+  ungroup() %>%
+  filter(!is.na(MeanConsumption))
+
+combinedDataReshapeNormalized2 = combinedDataReshapeNormalized %>%
+  group_by(Drug, Dose) %>%
+  mutate(q = (Dose / (max(MeanConsumption) * Dose)) * 100) %>%
+  mutate(NP = Price / q) %>%
+  mutate(NQ = MeanConsumption * q)
+
+combinedDataReshapeNormalized2$Drug = factor(combinedDataReshapeNormalized2$Drug)
+```
+
+```{r analysis-preferences}
+set.seed(42)
+knitr::opts_chunk$set(cache.extra = knitr::rand_seed, 
+                      fig.pos = 'H', 
+                      fig.path = 'figures/')
+```
+
+# Introduction
+
+Basic and applied work in operant behavioral economics investigates how various factors contribute to individual patterns of choice and consumption [e.g., price, availability of alternatives; see @reed_behavioral_2013, for an introduction]. Within this paradigm, research evaluating these factors has used one or more of the models derived from the framework of @hursh2008. This framework, an experimental translation of microeconomics, has been used by various teams to explore how an operant behavioral economic account can be extended to choices related to health outcomes [@bickel2016; @reed2022applied; for a review, see @hursh_behavioral_2000], the consumption of addictive substances [@acuff2020; @amlung_increased_2015; @gonzalezroz2019], and other forms of "risky" or unsafe choices, such as unprotected sexual behavior [@harsin_behavioral_2021; @strickland2020], and non-adherence to prescribed medication regimens [@jarmolowicz2020]. This approach has also been directed to various forms health and wellness initiatives, such as COVID-19 vaccination [@hursh2020quantifying], healthy tanning practices [@reed2016toward], and choices related to therapies [e.g., demand for evidence-based practices; @gilroy2022applic1; @gilroy2022applic2; @gilroy2022applic3] and the value of features within those therapies [@gilroy_evaluation_2019; @gilroy2021].
+
+The most prevalent approaches to evaluating the influence of ecological factors on reinforcer consumption are derived from the framework presented in @hursh2008. This framework has been used broadly across a range of reinforcers (e.g., goods, services), with both real and hypothetical outcomes [see @amlung_is_2012, for a corresponding empirical comparison], and the specific modeling strategy has evolved through various iterations. The latest and most recent iteration of this framework was constructed to address some of the historical challenges associated with the initial model of operant demand—the Linear-Elasticity model [@hursh1989]. The structure of the Linear-Elasticity model is presented in Equation 1.
+
+```{=tex}
+\begin{equation}
+lnQ = lnL + blnP - aP
+\end{equation}
+```
+
+In the Linear-Elasticity model, there are three parameters that each correspond to changes in consumption. Functioning as an intercept and an index of demand intensity, parameter *L* reflects the predicted level of consumption at a *P* of 1 (i.e., intercept of 0 in the log scale). The responsiveness to changes in price is jointly represented by two rate parameters, *a* and *b*. Briefly, the linear aspect of this model refers to the constant, linear sensitivity to relative (i.e., *b*) and absolute changes across prices (i.e., *a*). @hursh1989 described parameter *b* as "[the] initial downward slope of the demand curve." That is, if presented alone (i.e., without the *aP* interaction), this parameter would serve as a parameterized form of elasticity [see @gilroy2020, for a review on the concept of elasticity]. Parameter *a* represents the rate of change in elasticity per every *absolute* unit increase in *P*. The joint influence of these parameters establishes a linear model that approximates a non-linear form (i.e., the rate of change differs across price). Despite early success with this approach, @hursh2008 presented a successor to this model to address the analytical challenges associated with representing rates of change in elasticity using multiple parameters, which each reflected sensitivity to price in different ways. The structure of this newer model, the Exponential model of operant demand, is displayed in Equation 2.
+
+```{=tex}
+\begin{equation}
+log_{10}Q = log_{10}Q_0 + k (e^{-\alpha Q_0 P} - 1)
+\end{equation}
+```
+
+This updated approach represented the rate of change in elasticity using a single parameter (i.e., $\alpha$) and this simplified analysis and interpretation. However, it warrants noting that both the Linear-Elasticity and the Exponential models are fitted with three parameters. The Exponential model reduced the complexity of the model in some ways (i.e., one parameter to reflect the rate of change in elasticity) but introduced a novel parameter, *k*, to represent the span of the fitted demand curve in log units. This simplified the *quantification* of changes in consumption but complicated the *interpretation* of that quantity. That is, the rate constant $\alpha$ could be easily compared in studies where the span constant was fixed (i.e., same *k*s) but could not be compared across studies or cases when parameter *k* varied.
+
+## Essential Value in Operant Demand
+
+A central goal of the Exponential model was to isolate reinforcer effects to a singular metric. These effects, occasionally referred to as reinforcer potency [@penrod2008] or stimulus effects [@deleon2009], generally describe the effect that some stimuli or event has on behavior. @hursh2008 reflected upon prior and contemporary attempts to index the 'strength' of reinforcer effects, an early goal of Skinner and a reinforcer-based account of behavior [see @skinner_drive_1932]. In this more recent account, @hursh2008 highlighted several contributions of a behavioral economic account of reinforcer ‘strength’; namely, the ability to account for the effects of present income and variations in price—areas in which matching theory was not well-suited to explain. In a view of reinforcer effects using behavioral economic theory (i.e., operant demand), these effects are scaled as a function of price and economy type (i.e., from open to closed), and the scaling of these effects was termed *essential value*. Put simply, reinforcers producing a slight decrease in consumption in the presence of available alternatives (i.e., open economy) or rising prices are said to demonstrate higher value and suggest the reinforcer is more essential to the organism. However, it is necessary to restate that essential value is not some innate quality of a reinforcer and the concept refers broadly to the effects of consumption on behavior, given the context and the organism’s learning history [see @strickland_behavioral_2022, for further discussion of this point].
+
+The model presented in @hursh2008 took two steps to isolate the essential value of reinforcers to a single rate parameter ($\alpha$). First, the intercept $Q_0$ optimized such that the intensity of demand (i.e., dosage-level effects) could be interpreted as a quantity separate from essential value. That is, $Q_0$ represents a baseline level of demand intensity free from the scaling effects of price (*P*; i.e., $Q_0$ = *Q* at *P* of $0$). Second, and related to the first, the effects of price could be standardized across levels of consumption (and individuals) by referencing demand intensity in the scaling of essential value as a function of price. This is expressed more clearly by referencing the exponent of Equation 2, wherein the effect of price (*P*) is multiplied by the intensity of demand ($Q_0$) in the exponent of the decay function. @hursh2008 referred to this correction as a standardization to price, a change that permitted comparisons of essential value even when levels of demand intensity differed across individuals, groups, etc., so long as parameter *k* remained constant.
+
+Although the framework proposed by @hursh2008 achieved the goal of isolating essential value to a single parameter, the approach operated under several assumptions that frustrated research synthesis across individuals and studies. First, it was assumed that the span of the demand curve was a value that was identical across individuals or groups. Second, and linked to the first, there was an assumption that a shared span was simultaneously appropriate for all patterns of consumption in the given data set. To deviate from these assumptions, and allow the span to vary across cases, would prohibit comparisons of $\alpha$ across groups and/or individuals. This issue associated with varying span constants remains a challenge in the @hursh2008 model [see @gilroy2022; @gilroy2021a].
+
+## Abstracting Essential Value with Varying Spans
+
+@hursh2016 outlined a means to extract a comparable quantity from $\alpha$ when *k* parameters varied (e.g., across individuals, groups, studies). Specifically, they introduced an approach to express how $\alpha$ and *k* jointly reflected essential value and used this relationship to approximate a general index of essential value. This measure, hereafter referred to as the generalized measure of Essential Value (*EV*), is shown in Equation 3 and described in greater detail in the Appendix.
+
+```{=tex}
+\begin{equation}
+EV \approx \frac{1}{\alpha * Q_0 * k^{1.5}}
+\end{equation}
+```
+
+@hursh2016 reviewed this calculation as an approximation that reflected essential value while attempting to control for the variability introduced by when span constants and demand intensity varied. The goal of *EV* was to provide a general index of essential value that could be compared across individuals, groups, or studies in which *k* parameters differed [@hursh_2014; @hursh2016].
+
+### A Descriptive Model of Essential Value
+
+@hursh_2014 first presented the clinical and empirical bases from which formed the generalized measure of *EV*. Specifically, a clinical model was constructed to describe the observed relationship between $\alpha$ and *k*. @hursh_2014 fitted various instances of the @hursh2008 model to data resulting from various drug self-administration studies with non-human animals [e.g., @ko2002; @hursh_1995]. These fits varied in terms of pre-defined *k* values and the resulting $\alpha$ values were used to explore the relationship between parameters *k* and $\alpha$. Visual inspection of these results confirmed the known, inverse relationship between these two parameters. From these findings, @hursh_2014 concluded that this relationship between the two parameters could be described as a decaying power function. In fitting a power function to these data (i.e., $\alpha \textasciitilde k$), @hursh_2014 found evidence to suggest that an average rate constant of -1.5 generally approximated the relationship for *k* values ranging from 1-5, see Equation 4 as well as the Appendix.
+
+```{=tex}
+\begin{equation}
+\alpha \approx v * k^{-1.5}
+\end{equation}
+```
+
+Using this descriptive model as a point of reference, @hursh_2014 rearranged the terms such that both $\alpha$ and the power function were jointly represented by a general value parameter, *v*. This rearrangement of terms is illustrated in Equation 5.
+
+```{=tex}
+\begin{equation}
+v \approx \alpha * k^{1.5}
+\end{equation}
+```
+
+From this expression of quantity *v*, @hursh_2014 advocated for the use of this metric (i.e., generalized model of EV) as a way to index essential value across individuals and studies. The term generalized is used here to highlight the use of the approach in both normalized (i.e., dosage-level effects minimized by keeping $Q_0$ fixed at 100) and generalized patterns of consumption (i.e., $Q_0$ varying across fits). At present, the most recent version of normalized EV, as presented by @hursh2016, is provided in Equation 6.
+
+```{=tex}
+\begin{equation}
+EV \approx \frac{1}{\alpha * k^{1.5} * 100}
+\end{equation}
+```
+
+### Deconstructing a Descriptive Model of EV
+
+The generalized model of *EV* is deconstructed in this work to clarify the nature of essential value, the way it may be derived, and its interpretation. To simplify a re-conceptualization of EV, the data from @ko2002 and @hursh_1995 analyzed in the earlier @hursh_2014 work are re-analyzed here to facilitate a novel solution for essential value. Briefly, one of the goals of @ko2002 was to evaluate the essential value of three different drug reinforcers (i.e., opioids) that varied in their delay to peak action. Only the drug self-administration data are re-analyzed from this work. Additionally, data featured in @hursh_1995 also consisted of various drug self-administration studies using non-human subjects. It warrants noting that @hursh_1995 was not an experimental work, and historical data were extracted for further analysis, but these data are also re-analyzed to replicate the earlier process outlined in @hursh_2014 and @hursh2016.
+
+The data from @ko2002 and @hursh_1995 were re-analyzed using the Exponential model of demand and the strategy described by @hursh_2014, see Equation 4. Generalized least squares regressions were performed using the mean consumption of drugs across prices and dosage levels, wherever relevant. Although inconsistent with the ordinary least squares approach used in @hursh_2014 and @hursh2016, generalized least squares regression was used to address the known issues associated with non-independence of demand data, e.g. repeated drug self-administration data across prices, responses at prices across multiple dosages [see @kaplan2021, for a review of these issues]. A total of five analyses were performed for all drugs, each with a varying pre-set *k* value (i.e., 1.5, 2, 3, 4, 5).
+
+A re-analysis of these data confirmed the presence of an inverse relationship between parameters $\alpha$ and *k*, whereby larger *k* values correspond with smaller $\alpha$ values for a given data series. Following the strategy employed by @hursh_2014, Equation 4 was fitted using generalized least squares nonlinear to describe the relationship between $\alpha$ and varying *k* values. Referencing Equation 4, two quantities were estimated: an intercept value (*I*; similar to *v* in EV) and a scaling constant corresponding with exponential decay (s; i.e., $\alpha \approx I * k^s$). The results of these fits are illustrated in \autoref{fig:figure1}. An inspection of the scaling constant *s* reveals a range from 1.12 to 1.7, which corresponds with the central value of 1.5 identified by @hursh_2014. Calculating *EV* for the data from @ko2002 and @hursh_1995, this quantity reflects the orderly ranking that follows with delays to peak effects, see \autoref{fig:figure2}.
+
+```{r figure1, fig.height=4, fig.width=9, fig.cap="Drug-level Estimates for Power Function", warning=FALSE}
+
+k1.5 <- gnls(log(NQ)/log(10) ~ 2 + 1.5 * (exp(-alpha * 100 * NP) - 1),
+             data = combinedDataReshapeNormalized2,
+             na.action = na.omit,
+             params = list(alpha ~ Drug),
+             start = list( fixed = c(alpha = rep(0.00001, 6 ))),
+             weights = varPower(),
+             control = gnlsControl(msMaxIter = 200,
+                                   maxIter = 300,
+                                   tolerance = 1,
+                                   nlsTol = 1,
+                                   apVar = F,
+                                   opt = "optim"))
+
+k2 <- gnls(log(NQ)/log(10) ~ 2 + 2 * (exp(-alpha * 100 * NP) - 1),
+           data = combinedDataReshapeNormalized2,
+           na.action = na.omit,
+           params = list(alpha ~ Drug),
+           start = list( fixed = c(alpha = rep(0.00001, 6))),
+           weights = varPower(),
+           control = gnlsControl(msMaxIter = 200,
+                                 maxIter = 300,
+                                 tolerance = 1,
+                                 nlsTol = 1,
+                                 apVar = F,
+                                 opt = "optim"))
+
+k3 <- gnls(log(NQ)/log(10) ~ 2 + 3 * (exp(-alpha * 100 * NP) - 1),
+           data = combinedDataReshapeNormalized2,
+           na.action = na.omit,
+           params = list(alpha ~ Drug),
+           start = list( fixed = c(alpha = rep(0.00001, 6))),
+           weights = varPower(),
+           control = gnlsControl(msMaxIter = 200,
+                                 maxIter = 300,
+                                 tolerance = 1,
+                                 nlsTol = 1,
+                                 apVar = F,
+                                 opt = "optim"))
+
+k4 <- gnls(log(NQ)/log(10) ~ 2 + 4 * (exp(-alpha * 100 * NP) - 1),
+           data = combinedDataReshapeNormalized2,
+           na.action = na.omit,
+           params = list(alpha ~ Drug),
+           start = list( fixed = c(alpha = rep(0.00001, 6))),
+           weights = varPower(),
+           control = gnlsControl(msMaxIter = 200,
+                                 maxIter = 300,
+                                 tolerance = 1,
+                                 nlsTol = 1,
+                                 apVar = F,
+                                 opt = "optim"))
+
+k5 <- gnls(log(NQ)/log(10) ~ 2 + 5 * (exp(-alpha * 100 * NP) - 1),
+           data = combinedDataReshapeNormalized2,
+           na.action = na.omit,
+           params = list(alpha ~ Drug),
+           start = list( fixed = c(alpha = rep(0.00001, 6))),
+           weights = varPower(),
+           control = gnlsControl(msMaxIter = 200,
+                                 maxIter = 300,
+                                 tolerance = 1,
+                                 nlsTol = 1,
+                                 apVar = F,
+                                 opt = "optim"))
+
+drgs = c("Alfentanil", "Dizocilpine", "Fentanyl", "Ketamine", "Phencyclidine", "Remifentanil")
+
+k1.5frame = data.frame(
+  Drug = drgs,
+  Alpha = c(as.numeric(coef(k1.5)[1]),
+            (as.numeric(coef(k1.5)[1]) + as.numeric(coef(k1.5)[2])),
+            (as.numeric(coef(k1.5)[1]) + as.numeric(coef(k1.5)[3])),
+            (as.numeric(coef(k1.5)[1]) + as.numeric(coef(k1.5)[4])),
+            (as.numeric(coef(k1.5)[1]) + as.numeric(coef(k1.5)[5])),
+            (as.numeric(coef(k1.5)[1]) + as.numeric(coef(k1.5)[6]))),
+  K = 1.5
+)
+
+k2frame = data.frame(
+  Drug = drgs,
+  Alpha = c(as.numeric(coef(k2)[1]),
+            (as.numeric(coef(k2)[1]) + as.numeric(coef(k2)[2])),
+            (as.numeric(coef(k2)[1]) + as.numeric(coef(k2)[3])),
+            (as.numeric(coef(k2)[1]) + as.numeric(coef(k2)[4])),
+            (as.numeric(coef(k2)[1]) + as.numeric(coef(k2)[5])),
+            (as.numeric(coef(k2)[1]) + as.numeric(coef(k2)[6]))),
+  K = 2
+)
+
+k3frame = data.frame(
+  Drug = drgs,
+  Alpha = c(as.numeric(coef(k3)[1]),
+            (as.numeric(coef(k3)[1]) + as.numeric(coef(k3)[2])),
+            (as.numeric(coef(k3)[1]) + as.numeric(coef(k3)[3])),
+            (as.numeric(coef(k3)[1]) + as.numeric(coef(k3)[4])),
+            (as.numeric(coef(k3)[1]) + as.numeric(coef(k3)[5])),
+            (as.numeric(coef(k3)[1]) + as.numeric(coef(k3)[6]))),
+  K = 3
+)
+
+k4frame = data.frame(
+  Drug = drgs,
+  Alpha = c(as.numeric(coef(k4)[1]),
+            (as.numeric(coef(k4)[1]) + as.numeric(coef(k4)[2])),
+            (as.numeric(coef(k4)[1]) + as.numeric(coef(k4)[3])),
+            (as.numeric(coef(k4)[1]) + as.numeric(coef(k4)[4])),
+            (as.numeric(coef(k4)[1]) + as.numeric(coef(k4)[5])),
+            (as.numeric(coef(k4)[1]) + as.numeric(coef(k4)[6]))),
+  K = 4
+)
+
+
+k5frame = data.frame(
+  Drug = drgs,
+  Alpha = c(as.numeric(coef(k5)[1]),
+            (as.numeric(coef(k5)[1]) + as.numeric(coef(k5)[2])),
+            (as.numeric(coef(k5)[1]) + as.numeric(coef(k5)[3])),
+            (as.numeric(coef(k5)[1]) + as.numeric(coef(k5)[4])),
+            (as.numeric(coef(k5)[1]) + as.numeric(coef(k5)[5])),
+            (as.numeric(coef(k5)[1]) + as.numeric(coef(k5)[6]))),
+  K = 5
+)
+
+totalFrame.h = rbind(
+  k1.5frame,
+  k2frame,
+  k3frame,
+  k4frame,
+  k5frame
+)
+
+EV.h <- gnls(Alpha ~ EV * K ^ scale,
+             data = totalFrame.h,
+             na.action = na.omit,
+             params = list(EV ~ Drug,
+                           scale ~ Drug),
+             start = list( fixed = c(EV = rep(0.00001, 6),
+                                     scale = rep(1.5, 6))),
+             weights = varPower(),
+             control = gnlsControl(msMaxIter = 200,
+                                   maxIter = 300,
+                                   apVar = F,
+                                   opt = "optim"))
+
+totalFrame.h$preds = predict(EV.h)
+
+ev = tidy(EV.h) %>%
+  select(term, estimate) %>%
+  mutate(Metric = c(rep("EV", 6), rep("Scale", 6)),
+         Drug = rep(drgs, 2))
+
+evVal = unname(ev[1, "estimate"])
+sVal = unname(ev[7, "estimate"])
+
+ev[2, "estimate"] <- ev[2, "estimate"] + evVal
+ev[3, "estimate"] <- ev[3, "estimate"] + evVal
+ev[4, "estimate"] <- ev[4, "estimate"] + evVal
+ev[5, "estimate"] <- ev[5, "estimate"] + evVal
+ev[6, "estimate"] <- ev[6, "estimate"] + evVal
+
+ev[8, "estimate"] <- ev[8, "estimate"] + sVal
+ev[9, "estimate"] <- ev[9, "estimate"] + sVal
+ev[10, "estimate"] <- ev[10, "estimate"] + sVal
+ev[11, "estimate"] <- ev[11, "estimate"] + sVal
+ev[12, "estimate"] <- ev[12, "estimate"] + sVal
+
+string1 = createFormattingString(ev, 1)
+string2 = createFormattingString(ev, 2)
+string3 = createFormattingString(ev, 3)
+string4 = createFormattingString(ev, 4)
+string5 = createFormattingString(ev, 5)
+string6 = createFormattingString(ev, 6)
+
+ggplot(totalFrame.h, aes(K, Alpha, shape = Drug)) +
+  geom_point(size = 3) +
+  geom_line(aes(K, preds)) +
+  xlab("Pre-Set K Value") +
+  ylab("Best Fit Alpha") +
+  annotate("text", x = 0, y = 0.0001250,
+           hjust = 0,
+           label = as.expression(string2), parse = TRUE) + #Diz
+  annotate("text", x = 0, y = 0.000045,
+           hjust = 0,
+           label = as.expression(string4), parse = TRUE) + #Fent
+  annotate("text", x = 0, y = 0.0000375,
+           hjust = 0,
+           label = as.expression(string6), parse = TRUE) + #Phen
+  annotate("text", x = 0, y = 0.00003,
+           hjust = 0,
+           label = as.expression(string1), parse = TRUE) + #Alfent
+  annotate("text", x = 0, y = 0.0000225,
+           hjust = 0,
+           label = as.expression(string3), parse = TRUE) + #Remi
+  annotate("text", x = 0, y = 0.0000125,
+           hjust = 0,
+           label = as.expression(string5), parse = TRUE) + #Keta
+  scale_x_continuous(limits = c(0, 5),
+                     breaks = c(0, 1,2,3,4,5)) +
+  theme_apa() +
+  theme(legend.position = c(.9,.8))
+
+```
+
+```{r figure2, fig.cap="Normalized Essential Value Estimates", fig.height=4, fig.width=9, warning=FALSE}
+
+totalFrame.h$EV = 1 / (totalFrame.h$Alpha * (totalFrame.h$K^1.5) * 100)
+
+ggplot(totalFrame.h, aes(K, EV, shape = Drug)) +
+  geom_point(size = 3) +
+  xlim(0, 5) +
+  xlab("Pre-Set K Value") +
+  ylim(0, 600) +
+  theme_apa() +
+  theme(legend.position = c(.15,
+                            .8))
+
+```
+
+As illustrated in \autoref{fig:figure2}, the *EV* for a given drug reinforcer maintained the ordinal ranking in terms of the expected sensitivity to price. Put simply, @hursh_2014 and @hursh2016 succeeded in constructing an index that reflected the ordinal differences in essential value across reinforcers when *k* values differed. Despite success towards the original goal, there are three limitations to this approach that warrant further discussion and elaboration. First, and this is the case with all approximations, the exact relationship with fitted parameters is not well-characterized in this expression. For example, @hursh_2014 highlighted the strong correlation between *EV* and $P_{MAX}$ and based an approximation of $P_{MAX}$ from *EV* without establishing the relationship between the two. Similarly, the selection of the constant 1.5, or -1.5 in the decaying power function, is unlikely to be the optimal value for explaining the influence of *k*, especially at and beyond the boundaries noted by @hursh_2014, i.e., *k* ~ 1, ~ 5. As such, the approximation presented here introduces an unknown degree of error into all estimates and this limits precision in research synthesis. Second, this approach was investigated and evaluated for a limited range of *k* values (i.e., 1-5). @hursh_2014 noted that this approximation of *EV* was recommended for use only in situations wherein the fitted *k* value fell within the interval of 1 and 5. Indeed, an exploration of *k* values up to 10 leads to power function constants that fall below a value of 1 and *EV* no longer functions as it was originally designed. Third, and related to the first, the general model here does not provide a clear explanation of how *EV* relates to specific model parameters (i.e., $\alpha$, $Q_0$). For these reasons, the calculation of *EV* presented in @hursh_2014 is not a complete solution to the challenges of deriving essential value across varying *k* values and further inquiry is warranted.
+
+## An Exact Solution for Essential Value
+
+Various research teams have been endeavoring to improve the precision and reliability of methods derived from the operant demand framework [see @gilroy2020; @kaplan2021, for relevant examples]. In a relevant work exploring the concept of unit elasticity, @gilroy2019 evaluated existing accounts of elasticity in the literature and provided an exact solution for unit elasticity in the framework of @hursh2008, see Equation 7. Additional information on the re-arrangement of terms is provided in the Appendix.
+
+```{=tex}
+\begin{equation}
+P_{MAX} = \frac{1}{\alpha *Q_0} * -W(\frac{-1}{ln10^k})
+\end{equation}
+```
+
+Equation 7 is an exact solution that represents how the various parameters included in the framework of @hursh2008 jointly relate to unit elasticity. This was an empirical and conceptual improvement over earlier practices that relied on the generalized model of *EV* to provide an approximation of $P_{MAX}$. As noted in @gilroy2019, the terms of this solution can be rearranged to reflect the exact relationship between $\alpha$ and other parameters, including *k*, see Equation 8.
+
+```{=tex}
+\begin{equation}
+\alpha = \frac{-W(\frac{-1}{ln10^k})}{P_{MAX} *Q_0}
+\end{equation}
+```
+
+As indicated in Equations 4 and 8, these expressions reflect the approximated (i.e., power function) and exact relationships between $\alpha$ and relevant parameters, respectively. Revisiting the known relationship between $\alpha$ and *k* in Figure 1, the performance of the approximated (Equation 4) and exact (Equation 8) expressions are illustrated together in \autoref{fig:figure3}. Equation 4 provides a good approximation of this relationship but Equation 8 is exact in predicting the quantity $\alpha$ when parameter *k* varies. As such, the solution provided in @gilroy2019 succeeds in fully  explaining the relationship described in @hursh_2014 and @hursh2016. That is, the relationship between α and *k* can be described as resembling a power function, visually speaking, but the relationship is ultimately more complex. Replicating the logic of @hursh_2014, the solution provided in @gilroy2019 can be rearranged into the form described by Hursh and colleagues, i.e. $\alpha \approx I * k^s$. This rearrangement of terms is provided in Equation 9 and described in greater detail in the Appendix.
+
+```{r figure3, fig.cap="Power Function vs. Exact Solution", fig.height=4, fig.width=9, warning=FALSE}
+
+totalFrame.h$preds = predict(EV.h)
+
+totalFrame.h$Q0 = 100
+
+for (rwNum in 1:nrow(totalFrame.h)) {
+  totalFrame.h[rwNum, 'Pmax'] = GetAnalyticPmax(
+   totalFrame.h[rwNum, 'Alpha'],
+   totalFrame.h[rwNum, 'K'],
+   totalFrame.h[rwNum, 'Q0'])
+}
+
+totalFrame.h$W = lambertW(z = -1/log((10^totalFrame.h$K)))
+totalFrame.h$newA = -totalFrame.h$W / (totalFrame.h$Pmax * totalFrame.h$Q0)
+
+approxPlot = ggplot(totalFrame.h, aes(K, Alpha, shape = Drug)) +
+  ggtitle("Approximated Solution") +
+  geom_point(size = 3, fill = NA) +
+  geom_line(aes(K, preds)) +
+  xlim(0, 5) +
+  xlab("Pre-Set K Value") +
+  ylab("Best Fit Alpha") +
+  theme_apa() +
+  scale_shape(solid = FALSE) +
+  theme(legend.position = "none")
+
+analyticPlot = ggplot(totalFrame.h, aes(K, Alpha, shape = Drug)) +
+  ggtitle("Analytic Solution") +
+  geom_point(size = 3, fill = NA) +
+  geom_line(aes(K, newA)) +
+  xlim(0, 5) +
+  xlab("Pre-Set K Value") +
+  ylab("Best Fit Alpha") +
+  theme_apa() +
+  theme(legend.position = c(.85,
+                            .75),
+        legend.background = element_rect(fill='transparent'))
+
+grid.arrange(approxPlot, analyticPlot, ncol = 2)
+
+```
+
+```{=tex}
+\begin{equation}
+\alpha = \frac{1}{P_{MAX} *Q_0} * -W(\frac{-1}{ln10^k})
+\end{equation}
+```
+
+In Equation 9, the first term on the right-hand side, $\frac{1}{P_{MAX}*Q_0}$, functions similarly to the prior intercept (i.e., I or v), and the second term, $-W\frac{-1}{ln10^k}$, functions as scaling for parameter k. Indeed, the scaling for parameter *k* resembles a power function but at the core is driven by an omega function. \autoref{fig:figure4} illustrates how, as values of *k* grow larger, the function suggested by @hursh_2014 approaches that of exact scaling expression later in the interval of 1 to 5.
+
+```{r figure4, fig.cap="Comparisons of Power Function to Omega Function", fig.height=4, fig.width=4.5, warning=FALSE}
+
+dfCompareK = data.frame(
+  K = seq(1.5, 5, length = 50)
+)
+
+dfCompareK$`Power Function` = (1)/(dfCompareK$K^1.5)
+dfCompareK$`Omega Function` = -lambertW(z = -1/log((10^dfCompareK$K)))
+
+dfCompareK.long = dfCompareK %>%
+  gather(Scaling, Value, -K)
+
+ggplot(dfCompareK.long, aes(K, Value, shape = Scaling)) +
+  geom_line(color = "lightgray") +
+  geom_point(size = 3) +
+  ylab("Scaled Value") +
+  xlab("Pre-Set K Value") +
+  theme_apa() +
+  theme(legend.position = c(.8, .8))
+
+```
+
+### Relationship between $P_{MAX}$ and Essential Value
+
+@hursh2016 previously based an approximation of $P_{MAX}$ on the generalized model of *EV*. The expression for approximating $P_{MAX}$ used parameters from the @hursh2008 model (i.e., $Q_0$, $\alpha$, k) in the generalized model of *EV* and multiplied that quantity by a correction constant to more closely resemble $P_{MAX}$. This approximation is expressed in Equation 10 and reviewed in greater detail in the Appendix.
+
+```{=tex}
+\begin{equation}
+P_{MAX} \approx c * \frac{1}{\alpha * k^{1.5} * Q_0}
+\end{equation}
+```
+
+Similar to the relationship between $\alpha$ and *k* in the generalized model of EV, the missing piece in this formulation was the exact relationship between *k* and $P_{MAX}$. A rearrangement of the terms for Equation 10 can be performed to, near identically, take the form of the analytic solution for $P_{MAX}$ shown in Equation 7. The derivation of this expression is provided in Equation 11 and reviewed in greater detail in the Appendix.
+
+```{=tex}
+\begin{equation}
+P_{MAX} \approx \frac{1}{\alpha * Q_0} * \frac{c}{k^{1.5}}
+\end{equation}
+```
+
+The observation that *EV* is so closely linked to $P_{MAX}$ suggests that the link between essential value extends beyond individual parameters and speaks more broadly to features of the fitted demand function (i.e., unit elasticity, peak work).
+
+### An Analytic Solution to Essential Value
+
+Returning to the original approach expressed in @hursh_2014 and @hursh2016, the goal of *EV* was to generate a measure of essential value robust to the influence of varying span constants. This can be accomplished by applying the analytic representation of $P_{MAX}$ in the Exponential model of operant demand. The solution for this analytical representation is presented in Equation 12 and worked in greater detail in the Appendix.
+
+```{=tex}
+\begin{equation}
+Q_0 * P_{MAX} = \frac{1}{\alpha} * -W(\frac{-1}{ln10^k})
+\end{equation}
+```
+
+Equation 12 provides a formulation of essential value that isolates parameters $\alpha$ and *k*, providing an expression of essential value by multiplying the price at which peak work takes place, $P_{MAX}$, by the intensity of demand, $Q_0$. The use of a $P_{MAX}$ normalized to the level of demand intensity is a new concept and others have suggested such to yield a potency-independent measure of $P_{MAX}$ [see @newman2020, for a discussion]. @newman2020 highlighted similar concerns related to varying interpretations of $\alpha$ and elasticity as well as issues related to parameter k. Furthermore, an estimate of essential value without reference to the baseline level of consumption results in an estimate based on elasticity that is silent on differences in the baseline levels of demand across individuals and studies [see @hursh_1995, for an early discussion of this issue].
+
+Returning to Equation 12, hereafter referred to as an analytical measure of *EV* (exact EV), others have also suggested the use of $P_{MAX}$ as a means of drawing comparisons across fits with different *k* values.  This interpretation and expression of *EV* (exact EV) are presented and encouraged for two reasons. First, the link between $P_{MAX}$ and essential value noted in @hursh_2014 and @hursh2016 makes good sense because the isolation of the relationship between $\alpha$, $Q_0$, and *k* yields and a quantity equal to $P_{MAX}$. Indeed, the generalized model of *EV* presented by Hursh and colleagues was used as a way to approximation of $P_{MAX}$. That is, the generalized model of *EV* was essentially an approximate of a potency-dependent $P_{MAX}$ (i.e., $P_{MAX}$ without reference to demand intensity). To support this statement, \autoref{fig:figure5} illustrates the relationship between analytical $P_{MAX}$ and both the generalized (right) and the analytical models of *EV* (left). As indicated here, the close link between the original (i.e., generalized) *EV* metric and $P_{MAX}$ is because the original *EV* approximated a dosage-dependent form of $P_{MAX}$. Were the quantities $P_{MAX}$ multiplied by the demand intensity, the resulting estimates would be two orders greater (i.e., multiplied by 100; see the left portion of \autoref{fig:figure5}). Given that normalized demand has a baseline intensity of 100, *EV* in the analytic approach would be 100x the value of $P_{MAX}$.
+
+```{r figure5, fig.cap="Normalized Essential Value and Unit Elasticity", fig.height=4, fig.width=9, warning=FALSE}
+
+totalFrame.h$`Analytical EV` = totalFrame.h$Pmax * totalFrame.h$Q0
+
+displayFrame = totalFrame.h %>%
+  select(Drug, K, EV, `Analytical EV`, Pmax) %>%
+  rename(`Generalized EV` = EV) %>%
+  gather(Analysis, Estimate, -Drug, -K, -Pmax)
+
+ggplot(displayFrame, aes(Pmax, Estimate, shape = Analysis)) +
+  geom_smooth(method = "lm", 
+              se = FALSE, 
+              color = "gray", 
+              formula = y ~ x) +
+  geom_point(size = 2) +
+  xlab("Analytical PMAX") +
+  ylab("Essential Value") +
+  theme_apa() +
+  theme(legend.position = "none") +
+  facet_wrap(~Analysis, scales = "free_y")
+
+```
+
+Returning to the original goals of @hursh_2014 and @hursh2016, researchers using the operant demand framework require a means to reflect essential value when parameters $\alpha$ and *k* vary across groups and studies. Revisiting Figure 2, wherein the generalized model of *EV* was compared across pre-set *k* values, both the generalized and analytical model *EV* are presented together with the @ko2002 and @hursh_1995 data in \autoref{fig:figure6}. This figure illustrates how the analytical model of *EV* maintains the rank-ordering effects. Furthermore, the exact nature of this formulation has the added benefit of reflecting this relationship beyond the range of *k* values restricted by the generalized model of *EV*.
+
+```{r figure6, fig.cap="Rank Ordering of Essential Value across Methods", fig.height=4, fig.width=9, warning=FALSE}
+
+totalFrame.h$newEV = totalFrame.h$Pmax * totalFrame.h$Q0
+
+displayFrame = totalFrame.h %>%
+  select(Drug, K, EV, newEV) %>%
+  rename(`Generalized EV` = EV) %>%
+  rename(`Analytical EV`  = newEV) %>%
+  gather(Analysis, Estimate, -Drug, -K)
+
+ggplot(displayFrame, aes(K, Estimate, shape = Drug)) +
+  geom_point(size = 3, fill = NA) +
+  xlim(0, 5) +
+  xlab("K") +
+  ylab("EV (Approximated)") +
+  theme_apa() +
+  scale_y_log10() +
+  theme(legend.position = "none") +
+  facet_wrap( ~ Analysis, scales = "free_y")
+
+```
+
+# Summary and Discussion
+
+This technical review provided an in-depth exploration of essential value, including both the original definition and aim of the concept, illustrated how this term has been linked to parameters of the Exponential model of operant demand, and how the generalized measure of *EV* and a novel, analytical measure of *EV* are linked to the broader @hursh2008 framework. The solutions provided in this work build upon earlier explorations in @gilroy2019 and @gilroy2020, respectively, wherein the strengths and challenges of the @hursh2008 framework are exposed to achieve greater clarity and support new development and innovation.
+
+## Parameter $\alpha$ and Essential Value
+
+The results of this review outlined several challenges associated with varying accounts of essential value in operant demand. As observed with contemporary uses of terms such as unit elasticity [see @gilroy2019] and elasticity more broadly [see @gilroy2020], accounts and references to essential value have varied considerably as well. For instance, absent a clear derivation of the term, the label has been applied to varying calculations in research syntheses. For example, some have reported *EV* consistent with the expressions provided in @hursh2016 and this is most aligned with the original aims of the approach. Alternatively, others have applied the term to parameter $\alpha$ regardless of the known differences associated with varying *k* values. That is, others have simply used the inverse of parameter $\alpha$ (i.e., $\frac{1}{\alpha}$) as a measure of essential value. This approach does not align with essential value and is likely only defensible in cases of normalized demand with a shared span value (i.e., $Q_0$ and *k* identical across fits). Any use of this approach outside of such idealized conditions is unlikely to correspond with traditional interpretations of *EV*.
+
+Further discussion of parameter $\alpha$, which was originally designed to isolate essential value, continues to be necessary. Mathematically, parameter α most relates to peak work in the demand function [see @gilroy2020; @newman2020] and this contrasts with the conceptual goal that @hursh2008 had for this parameter. That is, smaller $\alpha$s indicate that peak work was observed at higher prices whereas larger $\alpha$s at lower prices. Peak work corresponds with $P_{MAX}$, and naturally, the relationship between $\alpha$ and $P_{MAX}$ is quite clear in this regard. Early attempts to isolate essential value ultimately approximated $P_{MAX}$ and this introduced some confusion regarding the mathematical basis for *EV*. Given this observation, it is not clear what the normalized measure of *EV* adds to the broader framework beyond $P_{MAX}$.
+
+## A Traditional and Normalized $P_{MAX}$
+
+The results of this work indicated that estimates of *EV* correspond with the traditional, dosage-dependent form of $P_{MAX}$. This finding clarifies how, despite the co-variation of parameters $\alpha$ and *k*, essential value most corresponds with peak work output (i.e., $P_{MAX}$). Although useful and directly linked to properties of the @hursh2008 framework, the use of $P_{MAX}$ as a singular metric of essential value is limiting in some ways. As noted in @hursh_1995, $P_{MAX}$ is silent on variations in the baseline levels of demand for various reinforcers and $P_{MAX}$ may be higher for certain reinforcers but lower in the amount of total responding maintained when compared to other reinforcers (i.e., if demand intensity lower overall).
+
+As an extension of $P_{MAX}$, others have called for a normalized version that reflects both the baseline level of demand intensity as well as $P_{MAX}$. The analytical measure of *EV* (i.e., $P_MAX * Q_0$), is presented here as a means to provide an index of essential value that is sensitive to variations in baseline levels of demand across individuals and reinforcers. For example, participants in a hypothetical study may demonstrate demand that is similarly sensitive to price but they may vary widely in their baseline levels of demand. In such a case, the traditional interpretation of $P_{MAX}$ may not be as useful in characterizing how individuals and/or subgroups may differ in their patterns of consumption. However, formal clinical evaluation is necessary to better understand the clinical utility of this newer calculation.
+
+## Summary
+
+In summary, the operant demand framework continues to grow in both sophistication [@kaplan2021] and versatility [@gilroy2018a; @gilroy2021a; @kaplan2019; @koffarnus2015]. A range of tools and methods continue to be developed to support both emerging and veteran researchers in conducting research applying the operant demand framework. Furthermore, many of these works continued to be developed and evaluated consistent with open source and open science initiatives [@gilroy2019furthering]. However, despite positive growth, various aspects of the economic framework (e.g., concepts, mathematical properties) are often loosely interpreted and communicated. Consistent with works similar to this report, additional care should be taken to interpret and communicate aspects of the @hursh2008 framework consistent with known mathematical properties and economic concepts.
+
+\newpage
+
+# References
+
+```{=tex}
+\begingroup
+\setlength{\parindent}{-0.5in}
+\setlength{\leftskip}{0.5in}
+```
+::: {#refs custom-style="Bibliography"}
+:::
+
+```{=tex}
+\endgroup
+```
+
+\newpage
+
+# Appendix
+
+## Worked Solution for the Generalized Model of EV: Hursh (2014)
+
+```{=tex}
+\begin{align*}
+\begin{split}
+v  &\approx \alpha * k^{1.5} \\
+EV &\approx \frac{1}{f(\alpha, k, Q_0)} \\
+EV &\approx \frac{1}{v} \\
+EV &\approx \frac{1}{\alpha * k^{1.5}} \\
+EV &\approx \frac{1}{\alpha * k^{1.5} * 100} 
+\end{split}
+\end{align*}
+```
+
+## Worked Solution for Unit Elasticity
+
+```{=tex}
+\begin{align*}
+\begin{split}
+P_{MAX} &= \frac{-W(\frac{-1}{ln10^k})}{\alpha *Q_0} \\
+P_{MAX} &= \frac{1}{\alpha *Q_0} * -W(\frac{-1}{ln10^k})
+\end{split}
+\end{align*}
+```
+
+## Worked Solution for Alternative to Power Function
+
+```{=tex}
+\begin{align*}
+\begin{split}
+\alpha &= \frac{-W(\frac{-1}{ln10^k})}{P_{MAX} * Q_0} \\
+\alpha &= \frac{1}{P_{MAX} * Q_0} * -W(\frac{-1}{ln10^k})
+\end{split}
+\end{align*}
+```
+
+## Hursh and Roma (2016) Approximation of ${P_MAX}$
+
+```{=tex}
+\begin{equation*}
+c = 0.084k + 0.65
+\end{equation*}
+
+\begin{equation*}
+P_{MAX} \approx c * \frac{1}{\alpha * k^{1.5} * Q_0}
+\end{equation*}
+```
+
+\pagebreak
+
+## Alternative Form of the Hursh and Roma (2016) Approximation of ${P_MAX}$
+
+```{=tex}
+\begin{align*}
+\begin{split}
+ApproxP_{MAX} & \approx c * \frac{1}{\alpha * k^{1.5} * Q_0} \\
+ApproxP_{MAX} & \approx c * \frac{1}{\alpha} * \frac{1}{k^{1.5}}* \frac{1}{Q_0} \\
+ApproxP_{MAX} & \approx c * \frac{1}{\alpha * Q_0} * \frac{1}{k^{1.5}} \\
+ApproxP_{MAX} & \approx \frac{1}{\alpha * Q_0} * \frac{c}{k^{1.5}}
+\end{split}
+\end{align*}
+```
+
+## Worked Solution for Analytic Model of Essential Value
+
+```{=tex}
+\begin{align*}
+\begin{split}
+P_{MAX}       &= \frac{-W(\frac{-1}{ln10^k})}{\alpha * Q_0} \\
+P_{MAX}       &= \frac{1}{\alpha * Q_0} * -W(\frac{-1}{ln10^k}) \\
+\alpha        &= \frac{1}{P_{MAX} * Q_0} * -W(\frac{-1}{ln10^k}) \\
+\alpha * Q_0  &= \frac{1}{P_{MAX}} * -W(\frac{-1}{ln10^k}) \\
+Q_0           &= \frac{1}{\alpha * P_{MAX}} * -W(\frac{-1}{ln10^k}) \\
+Q_0 * P_{MAX} &= \frac{1}{\alpha} * -W(\frac{-1}{ln10^k})
+\end{split}
+\end{align*}
+```
