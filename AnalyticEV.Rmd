@@ -18,7 +18,7 @@ affiliation:
     institution   : "Louisiana State University"
 
 authornote: |
- Shawn Patrick Gilroy is an Assistant Professor of School Psychology at Louisiana State University. Correspondence should be directed to sgilroy1@lsu.edu. The source code necessary to recreate this work is publicly hosted in a repository at: https://github.com/miyamot0/AnalyticalEV 
+ Shawn Patrick Gilroy is an Assistant Professor of School Psychology at Louisiana State University. Correspondence should be directed to sgilroy1@lsu.edu. The source code necessary to recreate this work is publicly hosted in a repository at: https://github.com/miyamot0/Essential-Value-Demand 
 
 abstract: |
   The operant demand framework has achieved high levels of adoption as an established approach for understanding how various ecological factors influence choice and consumption. A central goal of the framework proposed by Hursh and Silberburg (2008) was to isolate the “essential value” of reinforcers; namely, their effects on behavior in context. The effect of reinforcers on behavior is a phenomenon that is expected to vary as a function of dosage level (i.e., magnitude), price (i.e., schedule requirements), the intensity of demand, the availability of reinforcers (i.e., supply), and the individual’s current and historical context. This technical report provides a historical summary of the concept, describes the quantitative basis of essential value in the framework of Hursh and Silberburg (2008), reviews prior attempts to approximate a generalizable index of essential value, and presents a newer formulation using exact solution to provide a more succinct and durable index. Proofs and solutions are provided to clarify the bases for novel and existing representations of EV. Recommendations are provided to improve the precision and accuracy of behavioral economics metrics as well as support consensus regarding their interpretation in the operant demand framework.
@@ -408,7 +408,7 @@ Equation 7 is an exact solution that represents how the various parameters inclu
 
 As indicated in Equations 4 and 8, these expressions reflect the approximated (i.e., power function) and exact relationships between $\alpha$ and relevant parameters, respectively. Revisiting the known relationship between $\alpha$ and *k* in Figure 1, the performance of the approximated (Equation 4) and exact (Equation 8) expressions are illustrated together in \autoref{fig:figure3}. Equation 4 provides a good approximation of this relationship but Equation 8 is exact in predicting the quantity $\alpha$ when parameter *k* varies. As such, the solution provided in @gilroy2019 succeeds in fully  explaining the relationship described in @hursh_2014 and @hursh2016. That is, the relationship between α and *k* can be described as resembling a power function, visually speaking, but the relationship is ultimately more complex. Replicating the logic of @hursh_2014, the solution provided in @gilroy2019 can be rearranged into the form described by Hursh and colleagues, i.e. $\alpha \approx I * k^s$. This rearrangement of terms is provided in Equation 9 and described in greater detail in the Appendix.
 
-```{r figure3, fig.cap="Power Function vs. Exact Solution", fig.height=4, fig.width=9, warning=FALSE}
+```{r figure3, fig.cap="Approximated vs. Exact Solutions", fig.height=4, fig.width=9, warning=FALSE}
 
 totalFrame.h$preds = predict(EV.h)
 
