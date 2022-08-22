@@ -546,7 +546,7 @@ totalFrame.h$newEV = totalFrame.h$Pmax * totalFrame.h$Q0
 
 displayFrame = totalFrame.h %>%
   select(Drug, K, EV, newEV) %>%
-  rename(`Generalized EV` = EV) %>%
+  rename(`Normalized EV` = EV) %>%
   rename(`Analytical EV`  = newEV) %>%
   gather(Analysis, Estimate, -Drug, -K)
 
