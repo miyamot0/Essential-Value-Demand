@@ -557,7 +557,9 @@ ggplot(displayFrame, aes(K, Estimate, shape = Drug)) +
   ylab("EV (Approximated)") +
   theme_apa() +
   scale_y_log10() +
-  theme(legend.position = "none") +
+  theme(legend.position = "bottom") +
+  guides(shape = guide_legend(nrow = 1,
+                              byrow = TRUE)) +
   facet_wrap( ~ Analysis, scales = "free_y")
 
 ```
